@@ -5,8 +5,8 @@ volumes:
   n8n_storage:
   ollama_storage:
   qdrant_storage:
-  open-webui:
-  flowise:
+  # open-webui:
+  # flowise:
   caddy-data:
   caddy-config:
   valkey-data:
@@ -27,63 +27,68 @@ x-n8n: &service-n8n
     - N8N_PERSONALIZATION_ENABLED=false
     - N8N_ENCRYPTION_KEY
     - N8N_USER_MANAGEMENT_JWT_SECRET
-    - WEBHOOK_URL=${N8N_HOSTNAME:+https://}${N8N_HOSTNAME:-http://localhost:5678}
-
-x-ollama: &service-ollama
-  image: ollama/ollama:latest
-  container_name: ollama
-  restart: unless-stopped
-  expose:
-    - 11434/tcp
-  environment:
-    - OLLAMA_CONTEXT_LENGTH=8192
-    - OLLAMA_FLASH_ATTENTION=1
-    - OLLAMA_KV_CACHE_TYPE=q8_0
-    - OLLAMA_MAX_LOADED_MODELS=2    
-  volumes:
-    - ollama_storage:/root/.ollama
-
-x-init-ollama: &init-ollama
-  image: ollama/ollama:latest
-  container_name: ollama-pull-llama
-  volumes:
-    - ollama_storage:/root/.ollama
-  entrypoint: /bin/sh
-  command:
-    - "-c"
-    - "sleep 3; OLLAMA_HOST=ollama:11434 ollama pull qwen2.5:7b-instruct-q4_K_M; OLLAMA_HOST=ollama:11434 ollama pull nomic-embed-text"
-    # For a larger context length verison of the model, run these commands:
-    # echo "FROM qwen2.5:7b-instruct-q4_K_M\n\nPARAMETER num_ctx 8096" > Modelfile
-    # ollama create qwen2.5:7b-8k -f ./Modelfile
-    # Change the name of the LLM and num_ctx as you see fit.
+    - WEBHOOK_URL=${N8N_HOSTNAME:+https://}${N8N_HOSTNAME:-https://cfddf8d8405a.ngrok-free.app}
+#
+# x-ollama: &service-ollama
+#   image: ollama/ollama:latest
+#   container_name: ollama
+#   restart: unless-stopped
+#   expose:
+#     - 11434/tcp
+#   environment:
+#     - OLLAMA_CONTEXT_LENGTH=8192
+#     - OLLAMA_FLASH_ATTENTION=1
+#     - OLLAMA_KV_CACHE_TYPE=q8_0
+#     - OLLAMA_MAX_LOADED_MODELS=2
+#   volumes:
+#     - ollama_storage:/root/.ollama
+#
+# x-init-ollama: &init-ollama
+#   image: ollama/ollama:latest
+#   container_name: ollama-pull-llama
+#   volumes:
+#     - ollama_storage:/root/.ollama
+#   entrypoint: /bin/sh
+#   command:
+#     - "-c"
+#     - "sleep 3; OLLAMA_HOST=ollama:11434 ollama pull qwen2.5:7b-instruct-q4_K_M; OLLAMA_HOST=ollama:11434 ollama pull nomic-embed-text"
+# For a larger context length verison of the model, run these commands:
+# echo "FROM qwen2.5:7b-instruct-q4_K_M\n\nPARAMETER num_ctx 8096" > Modelfile
+# ollama create qwen2.5:7b-8k -f ./Modelfile
+# Change the name of the LLM and num_ctx as you see fit.
 
 services:
-  flowise:
-    image: flowiseai/flowise
-    restart: unless-stopped
-    container_name: flowise
-    expose:
-      - 3001/tcp
-    environment:
-        - PORT=3001
-        - FLOWISE_USERNAME=${FLOWISE_USERNAME}
-        - FLOWISE_PASSWORD=${FLOWISE_PASSWORD}  
-    extra_hosts:
-      - "host.docker.internal:host-gateway"        
-    volumes:
-        - ~/.flowise:/root/.flowise
-    entrypoint: /bin/sh -c "sleep 3; flowise start"
-
-  open-webui:
-    image: ghcr.io/open-webui/open-webui:main
-    restart: unless-stopped
-    container_name: open-webui
-    expose:
-      - 8080/tcp
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    volumes:
-      - open-webui:/app/backend/data
+  vector_server:
+    build: ./vector_server
+    container_name: vector_server
+    ports:
+      - "5100:5100"
+  # flowise:
+  #   image: flowiseai/flowise
+  #   restart: unless-stopped
+  #   container_name: flowise
+  #   expose:
+  #     - 3001/tcp
+  #   environment:
+  #       - PORT=3001
+  #       - FLOWISE_USERNAME=${FLOWISE_USERNAME}
+  #       - FLOWISE_PASSWORD=${FLOWISE_PASSWORD}
+  #   extra_hosts:
+  #     - "host.docker.internal:host-gateway"
+  #   volumes:
+  #       - ~/.flowise:/root/.flowise
+  #   entrypoint: /bin/sh -c "sleep 3; flowise start"
+  #
+  # open-webui:
+  #   image: ghcr.io/open-webui/open-webui:main
+  #   restart: unless-stopped
+  #   container_name: open-webui
+  #   expose:
+  #     - 8080/tcp
+  #   extra_hosts:
+  #     - "host.docker.internal:host-gateway"
+  #   volumes:
+  #     - open-webui:/app/backend/data
 
   n8n-import:
     <<: *service-n8n
@@ -93,7 +98,7 @@ services:
       - "-c"
       - "n8n import:credentials --separate --input=/backup/credentials && n8n import:workflow --separate --input=/backup/workflows"
     volumes:
-      - ./n8n/backup:/backup  
+      - ./n8n/backup:/backup
 
   n8n:
     <<: *service-n8n
@@ -119,21 +124,21 @@ services:
     volumes:
       - qdrant_storage:/qdrant/storage
 
-  neo4j:
-    image: neo4j:latest
-    volumes:
-        - ./neo4j/logs:/logs
-        - ./neo4j/config:/config
-        - ./neo4j/data:/data
-        - ./neo4j/plugins:/plugins
-    expose:
-      - 7473/tcp
-      - 7474/tcp
-      - 7687/tcp
-    environment:
-        - NEO4J_AUTH=${NEO4J_AUTH:-"neo4j/your_password"}
-    restart: always      
-
+  # neo4j:
+  #   image: neo4j:latest
+  #   volumes:
+  #       - ./neo4j/logs:/logs
+  #       - ./neo4j/config:/config
+  #       - ./neo4j/data:/data
+  #       - ./neo4j/plugins:/plugins
+  #   expose:
+  #     - 7473/tcp
+  #     - 7474/tcp
+  #     - 7687/tcp
+  #   environment:
+  #       - NEO4J_AUTH=${NEO4J_AUTH:-"neo4j/your_password"}
+  #   restart: always
+  #
   caddy:
     container_name: caddy
     image: docker.io/library/caddy:2-alpine
@@ -148,7 +153,7 @@ services:
       - 80/tcp
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./caddy-addon:/etc/caddy/addons:ro      
+      - ./caddy-addon:/etc/caddy/addons:ro
       - caddy-data:/data:rw
       - caddy-config:/config:rw
     environment:
@@ -176,7 +181,7 @@ services:
     restart: always
     depends_on: &langfuse-depends-on
       postgres:
-        condition: service_healthy    
+        condition: service_healthy
       minio:
         condition: service_healthy
       redis:
@@ -184,7 +189,7 @@ services:
       clickhouse:
         condition: service_healthy
     expose:
-     - 3030/tcp
+      - 3030/tcp
     environment: &langfuse-worker-env
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/postgres
       SALT: ${LANGFUSE_SALT}
@@ -307,7 +312,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: postgres
     volumes:
-      - langfuse_postgres_data:/var/lib/postgresql/data              
+      - langfuse_postgres_data:/var/lib/postgresql/data
 
   redis:
     container_name: redis
@@ -333,70 +338,70 @@ services:
       test: ["CMD", "redis-cli", "ping"]
       interval: 3s
       timeout: 10s
-      retries: 10        
+      retries: 10
 
-  searxng:
-    container_name: searxng
-    image: docker.io/searxng/searxng:latest
-    restart: unless-stopped
-    expose:
-      - 8080/tcp
-    volumes:
-      - ./searxng:/etc/searxng:rw
-    environment:
-      - SEARXNG_BASE_URL=https://${SEARXNG_HOSTNAME:-localhost}/
-      - UWSGI_WORKERS=${SEARXNG_UWSGI_WORKERS:-4}
-      - UWSGI_THREADS=${SEARXNG_UWSGI_THREADS:-4}
-    cap_drop:
-      - ALL
-    cap_add:
-      - CHOWN
-      - SETGID
-      - SETUID
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "1m"
-        max-file: "1"      
-
-  ollama-cpu:
-    profiles: ["cpu"]
-    <<: *service-ollama
-
-  ollama-gpu:
-    profiles: ["gpu-nvidia"]
-    <<: *service-ollama
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-
-  ollama-gpu-amd:
-    profiles: ["gpu-amd"]
-    <<: *service-ollama
-    image: ollama/ollama:rocm
-    devices:
-      - "/dev/kfd"
-      - "/dev/dri"
-
-  ollama-pull-llama-cpu:
-    profiles: ["cpu"]
-    <<: *init-ollama
-    depends_on:
-      - ollama-cpu
-
-  ollama-pull-llama-gpu:
-    profiles: ["gpu-nvidia"]
-    <<: *init-ollama
-    depends_on:
-      - ollama-gpu
-
-  ollama-pull-llama-gpu-amd:
-    profiles: [gpu-amd]
-    <<: *init-ollama
-    image: ollama/ollama:rocm
-    depends_on:
-     - ollama-gpu-amd
+  # searxng:
+  #   container_name: searxng
+  #   image: docker.io/searxng/searxng:latest
+  #   restart: unless-stopped
+  #   expose:
+  #     - 8080/tcp
+  #   volumes:
+  #     - ./searxng:/etc/searxng:rw
+  #   environment:
+  #     - SEARXNG_BASE_URL=https://${SEARXNG_HOSTNAME:-localhost}/
+  #     - UWSGI_WORKERS=${SEARXNG_UWSGI_WORKERS:-4}
+  #     - UWSGI_THREADS=${SEARXNG_UWSGI_THREADS:-4}
+  #   cap_drop:
+  #     - ALL
+  #   cap_add:
+  #     - CHOWN
+  #     - SETGID
+  #     - SETUID
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "1m"
+  #       max-file: "1"
+  #
+  # ollama-cpu:
+  #   profiles: ["cpu"]
+  #   <<: *service-ollama
+  #
+  # ollama-gpu:
+  #   profiles: ["gpu-nvidia"]
+  #   <<: *service-ollama
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: 1
+  #             capabilities: [gpu]
+  #
+  # ollama-gpu-amd:
+  #   profiles: ["gpu-amd"]
+  #   <<: *service-ollama
+  #   image: ollama/ollama:rocm
+  #   devices:
+  #     - "/dev/kfd"
+  #     - "/dev/dri"
+  #
+  # ollama-pull-llama-cpu:
+  #   profiles: ["cpu"]
+  #   <<: *init-ollama
+  #   depends_on:
+  #     - ollama-cpu
+  #
+  # ollama-pull-llama-gpu:
+  #   profiles: ["gpu-nvidia"]
+  #   <<: *init-ollama
+  #   depends_on:
+  #     - ollama-gpu
+  #
+  # ollama-pull-llama-gpu-amd:
+  #   profiles: [gpu-amd]
+  #   <<: *init-ollama
+  #   image: ollama/ollama:rocm
+  #   depends_on:
+  #    - ollama-gpu-amd
