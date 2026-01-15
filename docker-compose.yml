@@ -16,7 +16,7 @@ volumes:
   # langfuse_minio_data:
   #
 x-n8n: &service-n8n
-  image: n8nio/n8n:latest
+  image: n8nio/n8n:2.0.2
   environment:
     - DB_TYPE=postgresdb
     - DB_POSTGRESDB_HOST=${SUPABASE_DB_HOST}
